@@ -5,58 +5,129 @@ import {
 } from "./retrievalService.js";
 
 export async function askRAG(question) {
-  // Retrieve relevant documents
-  const searchResults =
+  console.log(
+    "\n========== RAG PROCESS STARTED =========="
+  );
+
+  console.log(
+    "User Question:",
+    question
+  );
+
+  // =========================
+  // STEP 1: RETRIEVE DOCUMENTS
+  // =========================
+
+  const retrievalResult =
     await retrieveDocuments(question);
 
-  const documents =
-    searchResults.documents?.[0] || [];
+  const relevantDocuments =
+    retrievalResult.relevantResults;
 
-  // If no documents are found
-  if (documents.length === 0) {
+  // =========================
+  // STEP 2: HANDLE NO RESULTS
+  // =========================
+
+  if (relevantDocuments.length === 0) {
+    console.log(
+      "No relevant documents passed the threshold."
+    );
+
     return {
       answer:
-        "I don't have enough information in the provided documents.",
+        "I don't have enough relevant information in my knowledge base to answer this question.",
+
       sources: [],
+
+      retrievalResults:
+        retrievalResult.allResults,
     };
   }
 
-  // Create context
+  // =========================
+  // STEP 3: BUILD CONTEXT
+  // =========================
+
   const context =
-    documents
-      .map((document, index) => {
-        return `[Source ${index + 1}]\n${document}`;
+    relevantDocuments
+      .map((item, index) => {
+        return `
+[Source ${index + 1}]
+${item.document}
+        `;
       })
       .join("\n\n");
 
-  // Create RAG Prompt
+  console.log(
+    "\n--- FINAL CONTEXT ---"
+  );
+
+  console.log(context);
+
+  // =========================
+  // STEP 4: CREATE PROMPT
+  // =========================
+
   const prompt = `
 You are a helpful AI assistant.
 
 Answer the user's question using ONLY the provided context.
 
-If the answer is not available in the context, clearly say:
+Do not use information outside the context.
+
+If the answer cannot be found in the context, say:
 
 "I don't have enough information in the provided documents."
 
-Context:
+====================
+CONTEXT
+====================
+
 ${context}
 
-User Question:
+====================
+QUESTION
+====================
+
 ${question}
 
-Answer:
+====================
+ANSWER
+====================
 `;
 
-  // Generate answer
+  // =========================
+  // STEP 5: GENERATE ANSWER
+  // =========================
+
+  console.log(
+    "\nSending relevant context to Gemini..."
+  );
+
   const response =
     await ai.models.generateContent({
       model: "gemini-3.6-flash",
       contents: prompt,
     });
 
+  console.log(
+    "Gemini generated answer successfully."
+  );
+
+  console.log(
+    "========== RAG PROCESS COMPLETED ==========\n"
+  );
+
+  // =========================
+  // RETURN RESPONSE
+  // =========================
+
   return {
     answer: response.text,
-    sources: documents,
+
+    sources: relevantDocuments,
+
+    retrievalResults:
+      retrievalResult.allResults,
   };
 }

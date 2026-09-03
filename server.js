@@ -1,8 +1,9 @@
 import express from "express";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
 import ragRoutes from "./routes/ragRoutes.js";
-import { initializeRAGDocuments } from "./services/ingestionService.js";
 
 dotenv.config();
 
@@ -10,25 +11,56 @@ const app = express();
 
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// =========================
+// ESM DIRECTORY SETUP
+// =========================
+
+const __filename = fileURLToPath(import.meta.url);
+
+const __dirname = path.dirname(__filename);
+
+// =========================
+// MIDDLEWARE
+// =========================
+
 app.use(express.json());
 
-// Serve Frontend
-app.use(express.static("public"));
+// =========================
+// API ROUTES
+// =========================
 
-// API Routes
-app.use("/api", ragRoutes);
+app.use("/api/rag", ragRoutes);
 
-// Start Server
-app.listen(PORT, async () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+// =========================
+// SERVE FRONTEND FILES
+// =========================
 
-  try {
-    await initializeRAGDocuments();
-  } catch (error) {
-    console.error(
-      "Failed to initialize RAG documents:",
-      error
-    );
-  }
+app.use(
+  express.static(
+    path.join(__dirname, "public")
+  )
+);
+
+// =========================
+// HOME ROUTE
+// =========================
+
+app.get("/", (req, res) => {
+  res.sendFile(
+    path.join(
+      __dirname,
+      "public",
+      "index.html"
+    )
+  );
+});
+
+// =========================
+// START SERVER
+// =========================
+
+app.listen(PORT, () => {
+  console.log(
+    `Server running on http://localhost:${PORT}`
+  );
 });
