@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>Advanced RAG Playground</title>
+
+  <link
+    rel="stylesheet"
+    href="style.css"
+  />
+</head>
+
+<body>
+
+  <div class="container">
+
+    <h1>Advanced RAG Playground 🚀</h1>
+
+    <p class="subtitle">
+      Ask questions about the documents stored
+      in the vector database.
+    </p>
+
+    <textarea
+      id="question"
+      placeholder="Example: Why do planets orbit the Sun?"
+    ></textarea>
+
+    <button id="askButton">
+      Ask Question
+    </button>
+
+    <div
+      id="answerResult"
+      class="result hidden"
+    ></div>
+
+  </div>
+
+  <script src="app.js"></script>
+
+</body>
+</html>

@@ -1,57 +1,34 @@
-import { CloudClient } from "chromadb";
-import dotenv from "dotenv";
 import express from "express";
+import dotenv from "dotenv";
+
+import ragRoutes from "./routes/ragRoutes.js";
+import { initializeRAGDocuments } from "./services/ingestionService.js";
 
 dotenv.config();
 
 const app = express();
 
-app.use(express.json());
-
 const PORT = process.env.PORT || 3000;
 
-// ChromaDB Cloud Client
-const chromaClient = new CloudClient({
-  apiKey: process.env.CHROMA_API_KEY,
-  tenant: process.env.CHROMA_TENANT,
-  database: process.env.CHROMA_DATABASE,
-});
+// Middleware
+app.use(express.json());
 
-// Basic endpoint
-app.get("/", (req, res) => {
-  res.json({
-    message: "Advanced RAG server is running 🚀",
-  });
-});
+// Serve Frontend
+app.use(express.static("public"));
 
-// Express test endpoint
-app.get("/api/hello", (req, res) => {
-  res.json({
-    message: "Hello from Express!",
-  });
-});
+// API Routes
+app.use("/api", ragRoutes);
 
-// ChromaDB connection test
-app.get("/api/chroma-test", async (req, res) => {
+// Start Server
+app.listen(PORT, async () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+
   try {
-    const heartbeat = await chromaClient.heartbeat();
-
-    res.json({
-      success: true,
-      message: "Connected to ChromaDB Cloud successfully",
-      heartbeat,
-    });
+    await initializeRAGDocuments();
   } catch (error) {
-    console.error("ChromaDB Error:", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Failed to connect to ChromaDB Cloud",
-      error: error.message,
-    });
+    console.error(
+      "Failed to initialize RAG documents:",
+      error
+    );
   }
-});
-
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
 });
