@@ -2,7 +2,7 @@ import { generateEmbedding } from "./embeddingService.js";
 import { searchDocuments } from "./vectorStoreService.js";
 import { generateAnswer } from "./geminiService.js";
 
-const SIMILARITY_THRESHOLD = 0.5;
+const SIMILARITY_THRESHOLD = 0.7;
 
 export async function askRAG(question, topic = null) {
   // 1. Generate query embedding
@@ -36,16 +36,34 @@ export async function askRAG(question, topic = null) {
     searchResults.metadatas?.[0] || [];
 
   // 4. Apply similarity threshold
-  const relevantDocuments = documents
+  const retrievedDocuments = documents
     .map((document, index) => ({
       document,
       distance: distances[index],
       metadata: metadatas[index],
-    }))
-    .filter(
-      (item) =>
-        item.distance <= SIMILARITY_THRESHOLD
+    }));
+
+  const relevantDocuments = retrievedDocuments.filter(
+    (item) =>
+      typeof item.distance === "number" &&
+      item.distance <= SIMILARITY_THRESHOLD
+  );
+
+  // Keep the closest result available when the configured cutoff is too strict
+  // for the embedding model, instead of returning no answer for a valid query.
+  if (
+    relevantDocuments.length === 0 &&
+    retrievedDocuments.length > 0
+  ) {
+    const closestDocument = retrievedDocuments.reduce(
+      (closest, item) =>
+        item.distance < closest.distance
+          ? item
+          : closest
     );
+
+    relevantDocuments.push(closestDocument);
+  }
 
   // No relevant documents
   if (relevantDocuments.length === 0) {

@@ -33,7 +33,7 @@ async function askQuestion() {
 
   try {
     const response =
-      await fetch("/api/ask", {
+      await fetch("/api/rag/ask", {
         method: "POST",
 
         headers: {
@@ -58,8 +58,13 @@ async function askQuestion() {
 
     // Create sources HTML
     const sourcesHTML =
-      data.sources
+      (Array.isArray(data.sources) ? data.sources : [])
         .map((source, index) => {
+          const document =
+            typeof source === "string"
+              ? source
+              : source.document || "";
+
           return `
             <div class="source">
               <strong>
@@ -67,7 +72,7 @@ async function askQuestion() {
               </strong>
 
               <p>
-                ${source}
+                ${document}
               </p>
             </div>
           `;

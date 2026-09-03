@@ -24,7 +24,7 @@ export async function storeDocument({
 }) {
   const collection = await getCollection();
 
-  await collection.add({
+  await collection.upsert({
     ids: [id],
     documents: [document],
     embeddings: [embedding],
