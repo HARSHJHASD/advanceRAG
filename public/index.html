@@ -1,252 +1,203 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
 
-<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <meta charset="UTF-8">
+    <title>Advanced RAG Playground</title>
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
-
-  <title>Advanced RAG Playground</title>
-
-  <style>
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: Arial, sans-serif;
-
-      max-width: 900px;
-
-      margin: 50px auto;
-
-      padding: 20px;
-
-      background: #f5f5f5;
-    }
-
-    .container {
-      background: white;
-
-      padding: 30px;
-
-      border-radius: 12px;
-    }
-
-    h1 {
-      text-align: center;
-    }
-
-    textarea {
-      width: 100%;
-
-      height: 120px;
-
-      padding: 15px;
-
-      margin-top: 15px;
-
-      font-size: 16px;
-
-      border: 1px solid #ccc;
-
-      border-radius: 8px;
-
-      resize: vertical;
-    }
-
-    button {
-
-      margin-top: 15px;
-
-      padding: 12px 24px;
-
-      border: none;
-
-      border-radius: 6px;
-
-      background: black;
-
-      color: white;
-
-      font-size: 16px;
-
-      cursor: pointer;
-    }
-
-    button:hover {
-      opacity: 0.8;
-    }
-
-    #result {
-
-      margin-top: 30px;
-
-      padding: 20px;
-
-      background: #f5f5f5;
-
-      border-radius: 8px;
-    }
-
-    .hidden {
-      display: none;
-    }
-
-    .source-card {
-
-      margin-top: 15px;
-
-      padding: 15px;
-
-      background: white;
-
-      border: 1px solid #ddd;
-
-      border-radius: 8px;
-    }
-
-    .distance {
-
-      font-size: 14px;
-
-      margin-top: 10px;
-    }
-
-    .relevant {
-
-      font-weight: bold;
-    }
-
-    hr {
-
-      margin: 30px 0;
-
-      border: none;
-
-      border-top: 1px solid #ddd;
-    }
-
-  </style>
-
-</head>
-
-<body>
-
-  <div class="container">
-
-    <h1>
-      Advanced RAG Playground 🚀
-    </h1>
-
-    <p>
-      Ask questions about the documents stored in the vector database.
-    </p>
-
-    <textarea
-      id="question"
-      placeholder="Ask a question..."
-    ></textarea>
-
-    <br>
-
-    <button onclick="askQuestion()">
-      Ask Question
-    </button>
-
-    <div
-      id="result"
-      class="hidden"
-    ></div>
-
-  </div>
-
-  <script>
-
-    const DISTANCE_THRESHOLD = 0.7;
-
-    async function askQuestion() {
-
-      const question =
-        document
-          .getElementById("question")
-          .value;
-
-      const result =
-        document
-          .getElementById("result");
-
-      if (!question.trim()) {
-
-        alert(
-          "Please enter a question"
-        );
-
-        return;
+    <style>
+      * {
+        box-sizing: border-box;
       }
 
-      result.classList.remove(
-        "hidden"
-      );
+      body {
+        font-family: Arial, sans-serif;
 
-      result.innerHTML =
-        "🔍 Searching knowledge base...";
+        max-width: 900px;
 
-      try {
+        margin: 50px auto;
 
-        const response =
-          await fetch(
-            "/api/rag/ask",
-            {
-              method: "POST",
+        padding: 20px;
 
-              headers: {
-                "Content-Type":
-                  "application/json"
-              },
+        background: #f5f5f5;
+      }
 
-              body: JSON.stringify({
-                question
-              }),
-            }
-          );
+      .container {
+        background: white;
 
-        const data =
-          await response.json();
+        padding: 30px;
 
-        if (!data.success) {
+        border-radius: 12px;
+      }
 
-          result.innerHTML =
-            "❌ Error: " +
-            data.message;
+      h1 {
+        text-align: center;
+      }
+
+      textarea {
+        width: 100%;
+
+        height: 120px;
+
+        padding: 15px;
+
+        margin-top: 15px;
+
+        font-size: 16px;
+
+        border: 1px solid #ccc;
+
+        border-radius: 8px;
+
+        resize: vertical;
+      }
+
+      button {
+        margin-top: 15px;
+
+        padding: 12px 24px;
+
+        border: none;
+
+        border-radius: 6px;
+
+        background: black;
+
+        color: white;
+
+        font-size: 16px;
+
+        cursor: pointer;
+      }
+
+      button:hover {
+        opacity: 0.8;
+      }
+
+      #result {
+        margin-top: 30px;
+
+        padding: 20px;
+
+        background: #f5f5f5;
+
+        border-radius: 8px;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      .source-card {
+        margin-top: 15px;
+
+        padding: 15px;
+
+        background: white;
+
+        border: 1px solid #ddd;
+
+        border-radius: 8px;
+      }
+
+      .distance {
+        font-size: 14px;
+
+        margin-top: 10px;
+      }
+
+      .relevant {
+        font-weight: bold;
+      }
+
+      hr {
+        margin: 30px 0;
+
+        border: none;
+
+        border-top: 1px solid #ddd;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <h1>Advanced RAG Playground 🚀</h1>
+
+      <p>Ask questions about the documents stored in the vector database.</p>
+      <label for="topic">Select Topic</label>
+
+      <select id="topic">
+        <option value="all">Search All Topics</option>
+        <option value="astronomy">Astronomy</option>
+        <option value="programming">Programming</option>
+        <option value="artificial-intelligence">Artificial Intelligence</option>
+      </select>
+      <textarea id="question" placeholder="Ask a question..."></textarea>
+
+      <br />
+
+      <button onclick="askQuestion()">Ask Question</button>
+
+      <div id="result" class="hidden"></div>
+    </div>
+
+    <script>
+      const DISTANCE_THRESHOLD = 0.7;
+
+      async function askQuestion() {
+        const question = document.getElementById("question").value;
+
+        const topic = document.getElementById("topic").value;
+
+        const result = document.getElementById("result");
+
+        if (!question.trim()) {
+          alert("Please enter a question");
 
           return;
         }
 
-        displayResults(data);
+        result.classList.remove("hidden");
 
-      } catch (error) {
+        result.innerHTML = "🔍 Searching knowledge base...";
 
-        console.error(error);
+        try {
+          const response = await fetch("/api/rag/ask", {
+            method: "POST",
 
-        result.innerHTML =
-          "❌ Something went wrong: " +
-          error.message;
+            headers: {
+              "Content-Type": "application/json",
+            },
+
+            body: JSON.stringify({
+              question,
+              topic,
+            }),
+          });
+
+          const data = await response.json();
+
+          if (!data.success) {
+            result.innerHTML = "❌ Error: " + data.message;
+
+            return;
+          }
+
+          displayResults(data);
+        } catch (error) {
+          console.error(error);
+
+          result.innerHTML = "❌ Something went wrong: " + error.message;
+        }
       }
-    }
 
-    function displayResults(data) {
+      function displayResults(data) {
+        const result = document.getElementById("result");
 
-      const result =
-        document
-          .getElementById("result");
-
-      let html = `
+        let html = `
         <h2>🤖 Answer</h2>
 
         <p>
@@ -260,24 +211,19 @@
         </h3>
       `;
 
-      // =========================
-      // RELEVANT DOCUMENTS
-      // =========================
+        // =========================
+        // RELEVANT DOCUMENTS
+        // =========================
 
-      if (data.sources.length === 0) {
-
-        html += `
+        if (data.sources.length === 0) {
+          html += `
           <p>
             No documents passed
             the similarity threshold.
           </p>
         `;
-
-      } else {
-
-        data.sources.forEach(
-          (source, index) => {
-
+        } else {
+          data.sources.forEach((source, index) => {
             html += `
               <div class="source-card">
 
@@ -305,15 +251,14 @@
 
               </div>
             `;
-          }
-        );
-      }
+          });
+        }
 
-      // =========================
-      // ALL RETRIEVED RESULTS
-      // =========================
+        // =========================
+        // ALL RETRIEVED RESULTS
+        // =========================
 
-      html += `
+        html += `
         <hr>
 
         <h3>
@@ -321,12 +266,8 @@
         </h3>
       `;
 
-      data.retrievalResults.forEach(
-        (item, index) => {
-
-          const isRelevant =
-            item.distance <=
-            DISTANCE_THRESHOLD;
+        data.retrievalResults.forEach((item, index) => {
+          const isRelevant = item.distance <= DISTANCE_THRESHOLD;
 
           html += `
             <div class="source-card">
@@ -348,35 +289,27 @@
                 </strong>
 
                 ${
-
                   isRelevant
-
                     ? `
                       <span class="relevant">
                         ✅ Relevant
                       </span>
                     `
-
                     : `
                       <span class="relevant">
                         ❌ Rejected
                       </span>
                     `
-
                 }
 
               </p>
 
             </div>
           `;
-        }
-      );
+        });
 
-      result.innerHTML = html;
-    }
-
-  </script>
-
-</body>
-
+        result.innerHTML = html;
+      }
+    </script>
+  </body>
 </html>

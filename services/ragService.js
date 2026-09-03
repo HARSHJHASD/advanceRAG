@@ -1,133 +1,78 @@
-import ai from "../config/gemini.js";
+import { generateEmbedding } from "./embeddingService.js";
+import { searchDocuments } from "./vectorStoreService.js";
+import { generateAnswer } from "./geminiService.js";
 
-import {
-  retrieveDocuments,
-} from "./retrievalService.js";
+const SIMILARITY_THRESHOLD = 0.5;
 
-export async function askRAG(question) {
-  console.log(
-    "\n========== RAG PROCESS STARTED =========="
-  );
+export async function askRAG(question, topic = null) {
+  // 1. Generate query embedding
+  const queryEmbedding =
+    await generateEmbedding(question);
 
-  console.log(
-    "User Question:",
-    question
-  );
+  // 2. Create metadata filter
+  let metadataFilter = null;
 
-  // =========================
-  // STEP 1: RETRIEVE DOCUMENTS
-  // =========================
-
-  const retrievalResult =
-    await retrieveDocuments(question);
-
-  const relevantDocuments =
-    retrievalResult.relevantResults;
-
-  // =========================
-  // STEP 2: HANDLE NO RESULTS
-  // =========================
-
-  if (relevantDocuments.length === 0) {
-    console.log(
-      "No relevant documents passed the threshold."
-    );
-
-    return {
-      answer:
-        "I don't have enough relevant information in my knowledge base to answer this question.",
-
-      sources: [],
-
-      retrievalResults:
-        retrievalResult.allResults,
+  if (topic && topic !== "all") {
+    metadataFilter = {
+      topic: topic,
     };
   }
 
-  // =========================
-  // STEP 3: BUILD CONTEXT
-  // =========================
+  // 3. Search vector database
+  const searchResults =
+    await searchDocuments(
+      queryEmbedding,
+      5,
+      metadataFilter
+    );
 
-  const context =
-    relevantDocuments
-      .map((item, index) => {
-        return `
-[Source ${index + 1}]
-${item.document}
-        `;
-      })
-      .join("\n\n");
+  const documents =
+    searchResults.documents?.[0] || [];
 
-  console.log(
-    "\n--- FINAL CONTEXT ---"
+  const distances =
+    searchResults.distances?.[0] || [];
+
+  const metadatas =
+    searchResults.metadatas?.[0] || [];
+
+  // 4. Apply similarity threshold
+  const relevantDocuments = documents
+    .map((document, index) => ({
+      document,
+      distance: distances[index],
+      metadata: metadatas[index],
+    }))
+    .filter(
+      (item) =>
+        item.distance <= SIMILARITY_THRESHOLD
+    );
+
+  // No relevant documents
+  if (relevantDocuments.length === 0) {
+    return {
+      answer:
+        "I couldn't find relevant information in the selected documents.",
+      sources: [],
+    };
+  }
+
+  // 5. Build context
+  const context = relevantDocuments
+    .map(
+      (item, index) =>
+        `Source ${index + 1}:
+${item.document}`
+    )
+    .join("\n\n");
+
+  // 6. Generate answer
+  const answer = await generateAnswer(
+    question,
+    context
   );
-
-  console.log(context);
-
-  // =========================
-  // STEP 4: CREATE PROMPT
-  // =========================
-
-  const prompt = `
-You are a helpful AI assistant.
-
-Answer the user's question using ONLY the provided context.
-
-Do not use information outside the context.
-
-If the answer cannot be found in the context, say:
-
-"I don't have enough information in the provided documents."
-
-====================
-CONTEXT
-====================
-
-${context}
-
-====================
-QUESTION
-====================
-
-${question}
-
-====================
-ANSWER
-====================
-`;
-
-  // =========================
-  // STEP 5: GENERATE ANSWER
-  // =========================
-
-  console.log(
-    "\nSending relevant context to Gemini..."
-  );
-
-  const response =
-    await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: prompt,
-    });
-
-  console.log(
-    "Gemini generated answer successfully."
-  );
-
-  console.log(
-    "========== RAG PROCESS COMPLETED ==========\n"
-  );
-
-  // =========================
-  // RETURN RESPONSE
-  // =========================
 
   return {
-    answer: response.text,
-
+    answer,
     sources: relevantDocuments,
-
-    retrievalResults:
-      retrievalResult.allResults,
   };
 }

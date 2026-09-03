@@ -3,23 +3,52 @@ export const defaultDocuments = [
     id: "sun_document",
     title: "Understanding the Sun",
     topic: "astronomy",
+    documentType: "educational",
 
     content: `
-The Sun is the star at the center of our solar system. It is a nearly perfect sphere of hot plasma and is the most important source of energy for life on Earth.
+The Sun is the star at the center of our solar system.
 
-The Sun provides light and heat that make life on Earth possible. Energy from the Sun supports many natural processes, including photosynthesis and the Earth's climate system.
+The Sun provides light and heat that make life on Earth possible.
 
-The Sun is primarily composed of hydrogen and helium. Hydrogen is the most abundant element in the Sun, while helium is the second most abundant element.
+The Sun is primarily composed of hydrogen and helium.
 
-The Sun produces enormous amounts of energy through nuclear fusion. Inside its core, hydrogen atoms combine to form helium, releasing a tremendous amount of energy.
+The Sun's gravity keeps the planets of our solar system in orbit.
 
-The Sun's gravity keeps the planets of our solar system in orbit. Without the gravitational force of the Sun, the planets would travel away through space.
+Nuclear fusion inside the Sun's core produces enormous amounts of energy.
+    `,
+  },
 
-The Sun is approximately 4.6 billion years old. Scientists estimate that it will continue producing energy for several billion more years before undergoing significant changes.
+  {
+    id: "javascript_document",
+    title: "JavaScript Fundamentals",
+    topic: "programming",
+    documentType: "educational",
 
-The Sun has several layers, including the core, radiative zone, convective zone, photosphere, chromosphere, and corona.
+    content: `
+JavaScript is a programming language used to build interactive web applications.
 
-The temperature at the core of the Sun is approximately 15 million degrees Celsius. The surface of the Sun is significantly cooler than its core.
-    `.trim(),
+JavaScript runs in browsers and can also run on servers using Node.js.
+
+JavaScript supports asynchronous programming using promises and async await.
+
+Modern JavaScript frameworks include React, Angular, and Vue.
+    `,
+  },
+
+  {
+    id: "rag_document",
+    title: "Introduction to RAG",
+    topic: "artificial-intelligence",
+    documentType: "technical",
+
+    content: `
+Retrieval Augmented Generation, also known as RAG, combines information retrieval with large language models.
+
+A RAG system retrieves relevant documents from a vector database before generating an answer.
+
+Embeddings convert text into numerical vectors that allow semantic similarity search.
+
+Vector databases such as ChromaDB store embeddings and help retrieve similar information.
+    `,
   },
 ];

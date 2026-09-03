@@ -2,7 +2,7 @@ import { askRAG } from "../services/ragService.js";
 
 export async function askQuestion(req, res) {
   try {
-    const { question } = req.body;
+    const { question, topic } = req.body;
 
     if (!question || !question.trim()) {
       return res.status(400).json({
@@ -11,16 +11,17 @@ export async function askQuestion(req, res) {
       });
     }
 
-    const result = await askRAG(question);
+    const result = await askRAG(
+      question,
+      topic
+    );
 
     res.json({
       success: true,
-      answer: result.answer,
-      sources: result.sources,
-      retrievalResults: result.retrievalResults,
+      ...result,
     });
   } catch (error) {
-    console.error("RAG Controller Error:", error);
+    console.error("RAG Error:", error);
 
     res.status(500).json({
       success: false,
