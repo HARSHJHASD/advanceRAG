@@ -1,5 +1,5 @@
 import { generateEmbedding } from "./embeddingService.js";
-import { searchVectors } from "./vectorStoreService.js";
+import { searchDocuments } from "./vectorStoreService.js";
 
 // Starting threshold
 // Lower distance = better match
@@ -23,7 +23,7 @@ export async function retrieveDocuments(question) {
     "Searching ChromaDB for relevant documents..."
   );
 
-  const results = await searchVectors(
+  const results = await searchDocuments(
     queryEmbedding,
     5
   );

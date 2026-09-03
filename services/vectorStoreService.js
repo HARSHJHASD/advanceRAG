@@ -1,30 +1,61 @@
-import chromaClient from "../config/chroma.js";
+import { chromaClient } from "../config/chroma.js";
 
 const COLLECTION_NAME = "rag_documents";
 
+// =========================
+// GET COLLECTION
+// =========================
+
 export async function getCollection() {
-  const collection = await chromaClient.getCollection({
+  return await chromaClient.getCollection({
     name: COLLECTION_NAME,
   });
-
-  return collection;
 }
 
-export async function searchVectors(
+// =========================
+// GET DOCUMENT BY ID
+// =========================
+
+export async function getDocumentById(id) {
+  const collection = await getCollection();
+
+  return await collection.get({
+    ids: [id],
+  });
+}
+
+// =========================
+// STORE DOCUMENT
+// =========================
+
+export async function storeDocument({
+  id,
+  document,
+  embedding,
+  metadata,
+}) {
+  const collection = await getCollection();
+
+  await collection.add({
+    ids: [id],
+    documents: [document],
+    embeddings: [embedding],
+    metadatas: [metadata],
+  });
+}
+
+// =========================
+// SEARCH DOCUMENTS
+// =========================
+
+export async function searchDocuments(
   queryEmbedding,
-  nResults = 5
+  numberOfResults = 5
 ) {
   const collection = await getCollection();
 
-  const results = await collection.query({
+  return await collection.query({
     queryEmbeddings: [queryEmbedding],
-    nResults,
-    include: [
-      "documents",
-      "metadatas",
-      "distances",
-    ],
+    nResults: numberOfResults,
   });
-
-  return results;
 }

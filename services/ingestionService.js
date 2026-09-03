@@ -1,56 +1,78 @@
-import { sunDocuments } from "../data/defaultDocuments.js";
-
+import { defaultDocuments } from "../data/defaultDocuments.js";
+import { chunkDocument } from "./chunkingService.js";
 import { generateEmbedding } from "./embeddingService.js";
 
 import {
-  documentExists,
-  addDocument,
+  getDocumentById,
+  storeDocument,
 } from "./vectorStoreService.js";
 
 export async function initializeRAGDocuments() {
   try {
-    console.log("Initializing RAG documents...");
+    console.log("Starting document ingestion...");
 
-    for (const document of sunDocuments) {
-      // Check if document already exists
-      const exists = await documentExists(document.id);
+    for (const document of defaultDocuments) {
+      console.log(`Processing: ${document.title}`);
 
-      if (exists) {
+      // Split the large document into chunks
+      const chunks = chunkDocument(
+        document.content,
+        500,
+        100
+      );
+
+      console.log(`Created ${chunks.length} chunks`);
+
+      for (let index = 0; index < chunks.length; index++) {
+        const chunk = chunks[index];
+
+        const chunkId =
+          `${document.id}_chunk_${index + 1}`;
+
+        // Check whether this chunk already exists
+        const existingDocument =
+          await getDocumentById(chunkId);
+
+        if (existingDocument.ids.length > 0) {
+          console.log(
+            `Skipping ${chunkId} - already exists`
+          );
+
+          continue;
+        }
+
         console.log(
-          `Skipping ${document.id} - already exists`
+          `Generating embedding for ${chunkId}`
         );
 
-        continue;
+        // Generate embedding
+        const embedding =
+          await generateEmbedding(chunk);
+
+        // Store chunk in ChromaDB
+        await storeDocument({
+          id: chunkId,
+          document: chunk,
+          embedding,
+          metadata: {
+            sourceId: document.id,
+            title: document.title,
+            topic: document.topic,
+            chunkIndex: index + 1,
+            totalChunks: chunks.length,
+          },
+        });
+
+        console.log(
+          `${chunkId} stored successfully`
+        );
       }
-
-      console.log(
-        `Generating embedding for ${document.id}...`
-      );
-
-      // Generate embedding
-      const embedding = await generateEmbedding(
-        document.content
-      );
-
-      // Store document
-      await addDocument({
-        id: document.id,
-        content: document.content,
-        embedding,
-        metadata: document.metadata,
-      });
-
-      console.log(
-        `${document.id} stored successfully`
-      );
     }
 
-    console.log(
-      "RAG document initialization completed"
-    );
+    console.log("Document ingestion completed!");
   } catch (error) {
     console.error(
-      "RAG Initialization Error:",
+      "Document Ingestion Error:",
       error
     );
   }

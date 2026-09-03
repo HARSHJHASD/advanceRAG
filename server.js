@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+import { initializeRAGDocuments } from "./services/ingestionService.js";
 
 import ragRoutes from "./routes/ragRoutes.js";
 
@@ -59,8 +60,10 @@ app.get("/", (req, res) => {
 // START SERVER
 // =========================
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(
     `Server running on http://localhost:${PORT}`
   );
+
+  await initializeRAGDocuments();
 });
