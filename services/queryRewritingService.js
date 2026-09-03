@@ -29,18 +29,18 @@ ${question}
 
     const rewrittenQuery = response.text?.trim();
 
-    if (!rewrittenQuery) {
-      return question;
-    }
+    console.log("\n🔄 QUERY REWRITING");
+    console.log("Original Query:", question);
+    console.log("Rewritten Query:", rewrittenQuery);
+    console.log("--------------------------\n");
 
-    return rewrittenQuery;
+    return rewrittenQuery || question;
   } catch (error) {
     console.error(
       "Query Rewriting Error:",
       error.message
     );
 
-    // Fallback to original question
     return question;
   }
 }
