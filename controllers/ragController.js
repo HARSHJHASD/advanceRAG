@@ -16,10 +16,7 @@ export async function askQuestion(req, res) {
       topic
     );
 
-    res.json({
-      success: true,
-      ...result,
-    });
+    res.json(result);
   } catch (error) {
     console.error("RAG Error:", error);
 

@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
 
     <title>Advanced RAG Playground</title>
 
@@ -14,15 +17,21 @@
 
       body {
         font-family: Arial, sans-serif;
+
         max-width: 900px;
+
         margin: 50px auto;
+
         padding: 20px;
+
         background: #f5f5f5;
       }
 
       .container {
         background: white;
+
         padding: 30px;
+
         border-radius: 12px;
       }
 
@@ -32,38 +41,59 @@
 
       label {
         display: block;
-        margin-top: 15px;
-        margin-bottom: 8px;
+
+        margin-top: 20px;
+
         font-weight: bold;
       }
 
       select {
         width: 100%;
+
+        margin-top: 8px;
+
         padding: 12px;
-        font-size: 16px;
+
         border: 1px solid #ccc;
+
         border-radius: 8px;
+
+        font-size: 16px;
       }
 
       textarea {
         width: 100%;
+
         height: 120px;
+
         padding: 15px;
+
         margin-top: 15px;
+
         font-size: 16px;
+
         border: 1px solid #ccc;
+
         border-radius: 8px;
+
         resize: vertical;
       }
 
       button {
         margin-top: 15px;
+
         padding: 12px 24px;
+
         border: none;
+
         border-radius: 6px;
+
         background: black;
+
         color: white;
+
         font-size: 16px;
+
         cursor: pointer;
       }
 
@@ -71,10 +101,19 @@
         opacity: 0.8;
       }
 
+      button:disabled {
+        opacity: 0.5;
+
+        cursor: not-allowed;
+      }
+
       #result {
         margin-top: 30px;
+
         padding: 20px;
+
         background: #f5f5f5;
+
         border-radius: 8px;
       }
 
@@ -84,30 +123,43 @@
 
       .source-card {
         margin-top: 15px;
+
         padding: 15px;
+
         background: white;
+
         border: 1px solid #ddd;
+
         border-radius: 8px;
+      }
+
+      .query-card {
+        margin-top: 10px;
+
+        padding: 12px;
+
+        background: white;
+
+        border-left: 4px solid black;
+
+        border-radius: 5px;
       }
 
       .distance {
         font-size: 14px;
+
         margin-top: 10px;
       }
 
       .relevant {
         font-weight: bold;
-        margin-left: 10px;
-      }
-
-      .rejected {
-        font-weight: bold;
-        margin-left: 10px;
       }
 
       hr {
         margin: 30px 0;
+
         border: none;
+
         border-top: 1px solid #ddd;
       }
     </style>
@@ -115,29 +167,44 @@
 
   <body>
     <div class="container">
-      <h1>Advanced RAG Playground 🚀</h1>
+
+      <h1>
+        Advanced RAG Playground 🚀
+      </h1>
 
       <p>
-        Ask questions about the documents stored in the vector database.
+        Ask questions about the documents
+        stored in the vector database.
       </p>
 
       <!-- ========================= -->
-      <!-- TOPIC FILTER -->
+      <!-- Topic Selection -->
       <!-- ========================= -->
 
-      <label for="topic">Select Topic</label>
+      <label for="topic">
+        Select Topic
+      </label>
 
       <select id="topic">
-        <option value="all">Search All Topics</option>
-        <option value="astronomy">Astronomy</option>
-        <option value="programming">Programming</option>
+        <option value="all">
+          Search All Topics
+        </option>
+
+        <option value="astronomy">
+          Astronomy
+        </option>
+
+        <option value="programming">
+          Programming
+        </option>
+
         <option value="artificial-intelligence">
           Artificial Intelligence
         </option>
       </select>
 
       <!-- ========================= -->
-      <!-- QUESTION -->
+      <!-- Question Input -->
       <!-- ========================= -->
 
       <textarea
@@ -145,72 +212,118 @@
         placeholder="Ask a question..."
       ></textarea>
 
-      <button onclick="askQuestion()">
+      <button
+        id="askButton"
+        onclick="askQuestion()"
+      >
         Ask Question
       </button>
 
       <!-- ========================= -->
-      <!-- RESULTS -->
+      <!-- Results -->
       <!-- ========================= -->
 
-      <div id="result" class="hidden"></div>
+      <div
+        id="result"
+        class="hidden"
+      ></div>
+
     </div>
 
     <script>
-      // This must match your backend similarity threshold.
-      // Change it here if your backend uses a different value.
-      const DISTANCE_THRESHOLD = 0.8;
 
       // =========================
-      // ASK QUESTION
+      // Ask Question
       // =========================
 
       async function askQuestion() {
+
         const question =
-          document.getElementById("question").value;
+          document
+            .getElementById("question")
+            .value;
 
         const topic =
-          document.getElementById("topic").value;
+          document
+            .getElementById("topic")
+            .value;
 
         const result =
-          document.getElementById("result");
+          document
+            .getElementById("result");
+
+        const askButton =
+          document
+            .getElementById("askButton");
+
+        // =========================
+        // Validate Question
+        // =========================
 
         if (!question.trim()) {
-          alert("Please enter a question");
+
+          alert(
+            "Please enter a question"
+          );
+
           return;
         }
 
-        result.classList.remove("hidden");
+        // =========================
+        // Loading State
+        // =========================
+
+        result.classList.remove(
+          "hidden"
+        );
 
         result.innerHTML = `
-          🔍 Searching knowledge base...
+          🔄 Processing Advanced RAG pipeline...
+
+          <br><br>
+
+          🔀 Generating multiple search queries...
+
+          <br><br>
+
+          🔍 Searching vector database...
         `;
 
+        askButton.disabled = true;
+
+        askButton.innerText =
+          "Processing...";
+
         try {
-          const response = await fetch(
-            "/api/rag/ask",
-            {
-              method: "POST",
 
-              headers: {
-                "Content-Type": "application/json",
-              },
+          const response =
+            await fetch(
+              "/api/rag/ask",
+              {
+                method: "POST",
 
-              body: JSON.stringify({
-                question,
-                topic,
-              }),
-            }
-          );
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
 
-          const data = await response.json();
+                body:
+                  JSON.stringify({
+                    question,
+                    topic,
+                  }),
+              }
+            );
 
-          console.log("RAG Response:", data);
+          const data =
+            await response.json();
 
           if (!data.success) {
-            result.innerHTML = `
-              ❌ Error: ${data.message}
-            `;
+
+            result.innerHTML =
+              "❌ Error: " +
+              (data.message ||
+                "Failed to process question");
 
             return;
           }
@@ -218,162 +331,321 @@
           displayResults(data);
 
         } catch (error) {
-          console.error("Frontend Error:", error);
 
-          result.innerHTML = `
-            ❌ Something went wrong:
-            ${error.message}
-          `;
+          console.error(error);
+
+          result.innerHTML =
+            "❌ Something went wrong: " +
+            error.message;
+
+        } finally {
+
+          askButton.disabled = false;
+
+          askButton.innerText =
+            "Ask Question";
         }
       }
 
       // =========================
-      // DISPLAY RESULTS
+      // Display Results
       // =========================
 
-    function displayResults(data) {
-  const result =
-    document.getElementById("result");
+      function displayResults(data) {
 
-  let html = `
-    <h2>🤖 Answer</h2>
+        const result =
+          document
+            .getElementById("result");
 
-    <p>${data.answer}</p>
+        let html = `
 
-    <hr>
+          <!-- Answer -->
 
-    <h3>🔄 Query Rewriting</h3>
-
-    <p>
-      <strong>Original Question:</strong>
-      ${data.originalQuestion}
-    </p>
-
-    <p>
-      <strong>Search Query Used:</strong>
-      ${data.rewrittenQuestion}
-    </p>
-
-    <hr>
-
-    <h3>📚 Relevant Context</h3>
-  `;
-
-  // =========================
-  // Relevant Documents
-  // =========================
-
-  if (!data.sources || data.sources.length === 0) {
-    html += `
-      <p>
-        No documents passed the similarity threshold.
-      </p>
-    `;
-  } else {
-    data.sources.forEach((source, index) => {
-      html += `
-        <div class="source-card">
-
-          <strong>
-            Source ${index + 1}
-          </strong>
+          <h2>
+            🤖 Answer
+          </h2>
 
           <p>
-            ${source.document}
+            ${data.answer}
           </p>
 
-          <p class="distance">
+          <hr>
 
-            Distance:
+          <!-- Query Rewriting -->
 
+          <h3>
+            🔄 Query Rewriting
+          </h3>
+
+          <p>
             <strong>
-              ${
-                typeof source.distance === "number"
-                  ? source.distance.toFixed(4)
-                  : "N/A"
-              }
+              Original Question:
             </strong>
 
-            <span class="relevant">
-              ✅ Relevant
-            </span>
-
+            ${data.originalQuestion}
           </p>
 
           <p>
-            <strong>Topic:</strong>
-            ${source.metadata?.topic || "Unknown"}
-          </p>
-
-          <p>
-            <strong>Title:</strong>
-            ${source.metadata?.title || "Unknown"}
-          </p>
-
-        </div>
-      `;
-    });
-  }
-
-  // =========================
-  // All Retrieved Documents
-  // =========================
-
-  if (
-    data.retrievalResults &&
-    data.retrievalResults.length > 0
-  ) {
-    html += `
-      <hr>
-
-      <h3>
-        🔍 All Retrieved Documents
-      </h3>
-    `;
-
-    data.retrievalResults.forEach(
-      (item, index) => {
-        html += `
-          <div class="source-card">
-
             <strong>
-              Result ${index + 1}
+              Rewritten Query:
             </strong>
 
-            <p>
-              ${item.document}
-            </p>
+            ${data.rewrittenQuery}
+          </p>
 
-            <p class="distance">
+          <hr>
 
-              Distance:
+          <!-- Multi Query -->
 
-              <strong>
-                ${
-                  typeof item.distance === "number"
-                    ? item.distance.toFixed(4)
-                    : "N/A"
-                }
-              </strong>
+          <h3>
+            🔀 Multi-Query Retrieval
+          </h3>
 
-            </p>
-
-            <p>
-              <strong>Topic:</strong>
-              ${
-                item.metadata?.topic ||
-                "Unknown"
-              }
-            </p>
-
-          </div>
+          <p>
+            Multiple search queries were
+            generated to retrieve information
+            from different semantic perspectives.
+          </p>
         `;
-      }
-    );
-  }
 
-  result.innerHTML = html;
-}
+        // =========================
+        // Generated Queries
+        // =========================
+
+        if (
+          data.searchQueries &&
+          data.searchQueries.length > 0
+        ) {
+
+          data.searchQueries.forEach(
+            (query, index) => {
+
+              html += `
+
+                <div class="query-card">
+
+                  <strong>
+                    Search Query ${index + 1}
+                  </strong>
+
+                  <p>
+                    ${query}
+                  </p>
+
+                </div>
+              `;
+            }
+          );
+
+        } else {
+
+          html += `
+            <p>
+              No additional queries
+              were generated.
+            </p>
+          `;
+        }
+
+        // =========================
+        // Relevant Context
+        // =========================
+
+        html += `
+
+          <hr>
+
+          <h3>
+            📚 Relevant Context
+          </h3>
+        `;
+
+        if (
+          !data.sources ||
+          data.sources.length === 0
+        ) {
+
+          html += `
+            <p>
+              No documents passed the
+              similarity threshold.
+            </p>
+          `;
+
+        } else {
+
+          data.sources.forEach(
+            (source, index) => {
+
+              html += `
+
+                <div class="source-card">
+
+                  <strong>
+                    Source ${index + 1}
+                  </strong>
+
+                  <p>
+                    ${source.document}
+                  </p>
+
+                  <p class="distance">
+
+                    Distance:
+
+                    <strong>
+
+                      ${
+                        typeof source.distance ===
+                        "number"
+
+                          ? source.distance.toFixed(4)
+
+                          : "N/A"
+                      }
+
+                    </strong>
+
+                    <span class="relevant">
+                      ✅ Relevant
+                    </span>
+
+                  </p>
+
+                  <p>
+
+                    <strong>
+                      Topic:
+                    </strong>
+
+                    ${
+                      source.metadata?.topic ||
+                      "Unknown"
+                    }
+
+                  </p>
+
+                  <p>
+
+                    <strong>
+                      Title:
+                    </strong>
+
+                    ${
+                      source.metadata?.title ||
+                      "Unknown"
+                    }
+
+                  </p>
+
+                  <p>
+
+                    <strong>
+                      Retrieved By:
+                    </strong>
+
+                    ${
+                      Array.isArray(source.retrievedBy)
+                        ? source.retrievedBy.join("; ")
+                        : source.retrievedBy || "Unknown"
+                    }
+
+                  </p>
+
+                </div>
+              `;
+            }
+          );
+        }
+
+        // =========================
+        // All Retrieval Results
+        // =========================
+
+        if (
+          data.retrievalResults &&
+          data.retrievalResults.length > 0
+        ) {
+
+          html += `
+
+            <hr>
+
+            <h3>
+              🔍 All Retrieved Documents
+            </h3>
+          `;
+
+          data.retrievalResults.forEach(
+            (item, index) => {
+
+              html += `
+
+                <div class="source-card">
+
+                  <strong>
+                    Result ${index + 1}
+                  </strong>
+
+                  <p>
+                    ${item.document}
+                  </p>
+
+                  <p class="distance">
+
+                    Distance:
+
+                    <strong>
+
+                      ${
+                        typeof item.distance ===
+                        "number"
+
+                          ? item.distance.toFixed(4)
+
+                          : "N/A"
+                      }
+
+                    </strong>
+
+                  </p>
+
+                  <p>
+
+                    <strong>
+                      Topic:
+                    </strong>
+
+                    ${
+                      item.metadata?.topic ||
+                      "Unknown"
+                    }
+
+                  </p>
+
+                  <p>
+
+                    <strong>
+                      Retrieved By:
+                    </strong>
+
+                    ${
+                      Array.isArray(item.retrievedBy)
+                        ? item.retrievedBy.join("; ")
+                        : item.retrievedBy || "Unknown"
+                    }
+
+                  </p>
+
+                </div>
+              `;
+            }
+          );
+        }
+
+        result.innerHTML = html;
+      }
+
     </script>
   </body>
 </html>
