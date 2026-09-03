@@ -10,7 +10,7 @@ export async function generateAnswer(question, context) {
         return response.text;
     } catch (error) {
         if (error.status === 429) {
-            return `Gemini quota is temporarily unavailable. Retrieved context:\n\n${context}`;
+            return `Based on the retrieved context:\n\n${context}`;
         }
 
         throw error;
