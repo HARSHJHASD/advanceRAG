@@ -50,3 +50,27 @@ export async function searchDocuments(
 
   return await collection.query(queryOptions);
 }
+
+export async function searchSimilarDocuments({
+  embedding,
+  topic = "all",
+  limit = 5,
+}) {
+  const results = await searchDocuments(
+    embedding,
+    limit,
+    topic !== "all" ? { topic } : null
+  );
+
+  const documents = results.documents?.[0] || [];
+  const ids = results.ids?.[0] || [];
+  const distances = results.distances?.[0] || [];
+  const metadatas = results.metadatas?.[0] || [];
+
+  return documents.map((document, index) => ({
+    id: ids[index],
+    document,
+    distance: distances[index],
+    metadata: metadatas[index],
+  }));
+}

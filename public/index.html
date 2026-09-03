@@ -231,202 +231,149 @@
       // DISPLAY RESULTS
       // =========================
 
-      function displayResults(data) {
-        const result =
-          document.getElementById("result");
+    function displayResults(data) {
+  const result =
+    document.getElementById("result");
 
-        let html = `
-          <h2>🤖 Answer</h2>
+  let html = `
+    <h2>🤖 Answer</h2>
 
-          <p>${data.answer}</p>
+    <p>${data.answer}</p>
 
-          <hr>
+    <hr>
 
-          <h3>📚 Relevant Context</h3>
+    <h3>🔄 Query Rewriting</h3>
+
+    <p>
+      <strong>Original Question:</strong>
+      ${data.originalQuestion}
+    </p>
+
+    <p>
+      <strong>Search Query Used:</strong>
+      ${data.rewrittenQuestion}
+    </p>
+
+    <hr>
+
+    <h3>📚 Relevant Context</h3>
+  `;
+
+  // =========================
+  // Relevant Documents
+  // =========================
+
+  if (!data.sources || data.sources.length === 0) {
+    html += `
+      <p>
+        No documents passed the similarity threshold.
+      </p>
+    `;
+  } else {
+    data.sources.forEach((source, index) => {
+      html += `
+        <div class="source-card">
+
+          <strong>
+            Source ${index + 1}
+          </strong>
+
+          <p>
+            ${source.document}
+          </p>
+
+          <p class="distance">
+
+            Distance:
+
+            <strong>
+              ${
+                typeof source.distance === "number"
+                  ? source.distance.toFixed(4)
+                  : "N/A"
+              }
+            </strong>
+
+            <span class="relevant">
+              ✅ Relevant
+            </span>
+
+          </p>
+
+          <p>
+            <strong>Topic:</strong>
+            ${source.metadata?.topic || "Unknown"}
+          </p>
+
+          <p>
+            <strong>Title:</strong>
+            ${source.metadata?.title || "Unknown"}
+          </p>
+
+        </div>
+      `;
+    });
+  }
+
+  // =========================
+  // All Retrieved Documents
+  // =========================
+
+  if (
+    data.retrievalResults &&
+    data.retrievalResults.length > 0
+  ) {
+    html += `
+      <hr>
+
+      <h3>
+        🔍 All Retrieved Documents
+      </h3>
+    `;
+
+    data.retrievalResults.forEach(
+      (item, index) => {
+        html += `
+          <div class="source-card">
+
+            <strong>
+              Result ${index + 1}
+            </strong>
+
+            <p>
+              ${item.document}
+            </p>
+
+            <p class="distance">
+
+              Distance:
+
+              <strong>
+                ${
+                  typeof item.distance === "number"
+                    ? item.distance.toFixed(4)
+                    : "N/A"
+                }
+              </strong>
+
+            </p>
+
+            <p>
+              <strong>Topic:</strong>
+              ${
+                item.metadata?.topic ||
+                "Unknown"
+              }
+            </p>
+
+          </div>
         `;
-
-        // =========================
-        // RELEVANT DOCUMENTS
-        // Documents that passed
-        // the similarity threshold
-        // =========================
-
-        if (
-          !data.sources ||
-          !Array.isArray(data.sources) ||
-          data.sources.length === 0
-        ) {
-          html += `
-            <p>
-              No documents passed the similarity threshold.
-            </p>
-          `;
-        } else {
-
-          data.sources.forEach((source, index) => {
-
-            const distance =
-              typeof source.distance === "number"
-                ? source.distance.toFixed(4)
-                : "N/A";
-
-            html += `
-              <div class="source-card">
-
-                <strong>
-                  Source ${index + 1}
-                </strong>
-
-                <p>
-                  ${source.document || "No document available"}
-                </p>
-
-                <p class="distance">
-
-                  Distance:
-
-                  <strong>
-                    ${distance}
-                  </strong>
-
-                  <span class="relevant">
-                    ✅ Relevant
-                  </span>
-
-                </p>
-
-                <p>
-
-                  <strong>Topic:</strong>
-
-                  ${
-                    source.metadata?.topic ||
-                    "Unknown"
-                  }
-
-                </p>
-
-                <p>
-
-                  <strong>Title:</strong>
-
-                  ${
-                    source.metadata?.title ||
-                    "Unknown"
-                  }
-
-                </p>
-
-              </div>
-            `;
-          });
-        }
-
-        // =========================
-        // ALL RETRIEVED DOCUMENTS
-        // Includes documents that
-        // were rejected by threshold
-        // =========================
-
-        if (
-          data.retrievalResults &&
-          Array.isArray(data.retrievalResults) &&
-          data.retrievalResults.length > 0
-        ) {
-
-          html += `
-            <hr>
-
-            <h3>
-              🔍 All Retrieved Documents
-            </h3>
-
-            <p>
-              These are the documents returned by
-              ChromaDB before similarity filtering.
-            </p>
-          `;
-
-          data.retrievalResults.forEach(
-            (item, index) => {
-
-              const isRelevant =
-                typeof item.distance === "number" &&
-                item.distance <= DISTANCE_THRESHOLD;
-
-              const distance =
-                typeof item.distance === "number"
-                  ? item.distance.toFixed(4)
-                  : "N/A";
-
-              html += `
-                <div class="source-card">
-
-                  <strong>
-                    Result ${index + 1}
-                  </strong>
-
-                  <p>
-                    ${
-                      item.document ||
-                      "No document available"
-                    }
-                  </p>
-
-                  <p class="distance">
-
-                    Distance:
-
-                    <strong>
-                      ${distance}
-                    </strong>
-
-                    ${
-                      isRelevant
-                        ? `
-                          <span class="relevant">
-                            ✅ Relevant
-                          </span>
-                        `
-                        : `
-                          <span class="rejected">
-                            ❌ Rejected
-                          </span>
-                        `
-                    }
-
-                  </p>
-
-                  <p>
-
-                    <strong>Topic:</strong>
-
-                    ${
-                      item.metadata?.topic ||
-                      "Unknown"
-                    }
-
-                  </p>
-
-                  <p>
-
-                    <strong>Title:</strong>
-
-                    ${
-                      item.metadata?.title ||
-                      "Unknown"
-                    }
-
-                  </p>
-
-                </div>
-              `;
-            }
-          );
-        }
-
-        result.innerHTML = html;
       }
+    );
+  }
+
+  result.innerHTML = html;
+}
     </script>
   </body>
 </html>

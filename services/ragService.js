@@ -1,80 +1,141 @@
 import { generateEmbedding } from "./embeddingService.js";
-import { searchDocuments } from "./vectorStoreService.js";
-import { generateAnswer } from "./geminiService.js";
 
-const SIMILARITY_THRESHOLD = 0.8;
+import {
+  searchSimilarDocuments,
+} from "./vectorStoreService.js";
 
-export async function askRAG(question, topic = null) {
-  // 1. Generate query embedding
-  const queryEmbedding =
-    await generateEmbedding(question);
+import {
+  generateAnswer,
+} from "./answerService.js";
 
-  // 2. Create metadata filter
-  let metadataFilter = null;
+import {
+  rewriteQuery,
+} from "./queryRewritingService.js";
 
-  if (topic && topic !== "all") {
-    metadataFilter = {
-      topic: topic,
-    };
-  }
+// =========================
+// Similarity Threshold
+// =========================
 
-  // 3. Search vector database
-  const searchResults =
-    await searchDocuments(
-      queryEmbedding,
-      5,
-      metadataFilter
+const SIMILARITY_THRESHOLD = 1.2;
+
+// =========================
+// Process RAG Question
+// =========================
+
+export async function processQuestion(
+  question,
+  topic = "all"
+) {
+  try {
+    console.log("\n========== RAG PIPELINE ==========");
+
+    console.log(
+      "Original Question:",
+      question
     );
 
-  const documents =
-    searchResults.documents?.[0] || [];
+    // =========================
+    // STEP 1
+    // Query Rewriting
+    // =========================
 
-  const distances =
-    searchResults.distances?.[0] || [];
+    const rewrittenQuestion =
+      await rewriteQuery(question);
 
-  const metadatas =
-    searchResults.metadatas?.[0] || [];
+    console.log(
+      "Rewritten Question:",
+      rewrittenQuestion
+    );
 
-  // 4. Apply similarity threshold
-  const retrievedDocuments = documents
-    .map((document, index) => ({
-      document,
-      distance: distances[index],
-      metadata: metadatas[index],
-    }));
+    // =========================
+    // STEP 2
+    // Generate Query Embedding
+    // =========================
 
-  const relevantDocuments = retrievedDocuments.filter(
-    (item) =>
-      typeof item.distance === "number" &&
-      item.distance <= SIMILARITY_THRESHOLD
-  );
+    const queryEmbedding =
+      await generateEmbedding(
+        rewrittenQuestion
+      );
 
-  // No relevant documents
-  if (relevantDocuments.length === 0) {
+    console.log(
+      "Query embedding generated"
+    );
+
+    // =========================
+    // STEP 3
+    // Semantic Search
+    // =========================
+
+    const retrievalResults =
+      await searchSimilarDocuments({
+        embedding: queryEmbedding,
+        topic,
+        limit: 5,
+      });
+
+    console.log(
+      "Documents retrieved:",
+      retrievalResults.length
+    );
+
+    // =========================
+    // STEP 4
+    // Similarity Threshold
+    // =========================
+
+    const relevantDocuments =
+      retrievalResults.filter(
+        (item) =>
+          item.distance <=
+          SIMILARITY_THRESHOLD
+      );
+
+    console.log(
+      "Relevant documents:",
+      relevantDocuments.length
+    );
+
+    // =========================
+    // STEP 5
+    // Generate Answer
+    // =========================
+
+    const answer = await generateAnswer({
+      question,
+      context: relevantDocuments,
+    });
+
+    console.log(
+      "Answer generated"
+    );
+
+    console.log(
+      "==================================\n"
+    );
+
     return {
-      answer:
-        "I couldn't find relevant information in the selected documents.",
-      sources: [],
+      success: true,
+
+      answer,
+
+      originalQuestion: question,
+
+      rewrittenQuestion,
+
+      sources: relevantDocuments,
+
+      retrievalResults,
     };
+  } catch (error) {
+    console.error(
+      "RAG Processing Error:",
+      error
+    );
+
+    throw error;
   }
+}
 
-  // 5. Build context
-  const context = relevantDocuments
-    .map(
-      (item, index) =>
-        `Source ${index + 1}:
-${item.document}`
-    )
-    .join("\n\n");
-
-  // 6. Generate answer
-  const answer = await generateAnswer(
-    question,
-    context
-  );
-
-  return {
-    answer,
-    sources: relevantDocuments,
-  };
+export async function askRAG(question, topic = "all") {
+  return processQuestion(question, topic);
 }
