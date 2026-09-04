@@ -1,8 +1,9 @@
 import ai from "../config/gemini.js";
+import { withRetry } from "./retryService.js";
 
 export async function generateAnswer(question, context) {
   try {
-    const response = await ai.models.generateContent({
+    const response = await withRetry(() => ai.models.generateContent({
       model: "gemini-3.6-flash",
 
       contents: `
@@ -16,7 +17,7 @@ ${context}
 Question:
 ${question}
 `,
-    });
+    }));
 
     return response.text;
   } catch (error) {
@@ -35,11 +36,11 @@ ${question}
 
 export async function generateContent(prompt) {
   try {
-    const response = await ai.models.generateContent({
+    const response = await withRetry(() => ai.models.generateContent({
       model: "gemini-3.6-flash",
 
       contents: prompt,
-    });
+    }));
 
     return response.text;
   } catch (error) {

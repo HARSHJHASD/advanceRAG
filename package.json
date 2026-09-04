@@ -5,13 +5,14 @@
   "license": "ISC",
   "author": "",
   "type": "module",
-  
   "main": "index.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "evaluate": "node scripts/evaluateRag.js"
   },
   "dependencies": {
+    "@chroma-core/default-embed": "^0.1.9",
     "@google/genai": "^2.21.0",
     "chromadb": "^3.5.0",
     "dotenv": "^17.4.2",

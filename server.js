@@ -3,6 +3,10 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import { initializeRAGDocuments } from "./services/ingestionService.js";
+import {
+  rateLimit,
+  requestObservability,
+} from "./services/requestMiddleware.js";
 
 import ragRoutes from "./routes/ragRoutes.js";
 
@@ -24,13 +28,14 @@ const __dirname = path.dirname(__filename);
 // MIDDLEWARE
 // =========================
 
-app.use(express.json());
+app.use(express.json({ limit: "100kb" }));
+app.use(requestObservability);
 
 // =========================
 // API ROUTES
 // =========================
 
-app.use("/api/rag", ragRoutes);
+app.use("/api/rag", rateLimit, ragRoutes);
 
 // =========================
 // SERVE FRONTEND FILES
@@ -60,10 +65,16 @@ app.get("/", (req, res) => {
 // START SERVER
 // =========================
 
-app.listen(PORT, async () => {
+async function startServer() {
+  // Complete ingestion before accepting requests so query traffic never
+  // competes with startup embeddings for Gemini quota.
+  await initializeRAGDocuments();
+
+  app.listen(PORT, () => {
   console.log(
     `Server running on http://localhost:${PORT}`
   );
+  });
+}
 
-  await initializeRAGDocuments();
-});
+startServer();

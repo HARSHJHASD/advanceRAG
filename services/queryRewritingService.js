@@ -1,6 +1,12 @@
 import { ai } from "../config/gemini.js";
 
 export async function rewriteQuery(question, history = []) {
+  // A standalone question is already a valid retrieval query. Preserve Gemini
+  // quota for the answer unless there is conversation context to resolve.
+  if (history.length === 0 && process.env.USE_LLM_QUERY_REWRITING !== "true") {
+    return question;
+  }
+
   try {
     const conversation = history.length
       ? history

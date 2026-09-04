@@ -3,6 +3,9 @@ import { chunkDocument } from "./chunkingService.js";
 import { generateEmbedding } from "./embeddingService.js";
 
 import {
+  deleteDocumentsById,
+  getDocumentById,
+  getDocumentIdsBySourceId,
   storeDocument,
 } from "./vectorStoreService.js";
 
@@ -27,6 +30,10 @@ export async function initializeRAGDocuments() {
         `Created ${chunks.length} chunks`
       );
 
+      const expectedChunkIds = new Set(
+        chunks.map((_, index) => `${document.id}_chunk_${index + 1}`)
+      );
+
       // =========================
       // Process every chunk
       // =========================
@@ -35,6 +42,16 @@ export async function initializeRAGDocuments() {
         const chunk = chunks[index];
 
         const chunkId = `${document.id}_chunk_${index + 1}`;
+
+        // Avoid spending Gemini embedding quota on chunks that are already
+        // present and unchanged from a previous startup.
+        const existing = await getDocumentById(chunkId);
+        const existingDocument = existing.documents?.[0];
+
+        if (existingDocument === chunk) {
+          console.log(`${chunkId} is already up to date; skipping embedding.`);
+          continue;
+        }
 
         console.log(
           `Generating embedding for ${chunkId}...`
@@ -76,6 +93,20 @@ export async function initializeRAGDocuments() {
         console.log(
           `${chunkId} stored/updated successfully`
         );
+      }
+
+      // Semantic chunking can reduce the number of chunks. Remove only the
+      // explicit stale IDs for this source so obsolete content is never
+      // retrieved after a document update.
+      const storedChunkIds = await getDocumentIdsBySourceId(document.id);
+      const staleChunkIds = storedChunkIds.filter(
+        (id) => !expectedChunkIds.has(id)
+      );
+
+      await deleteDocumentsById(staleChunkIds);
+
+      if (staleChunkIds.length) {
+        console.log(`Removed ${staleChunkIds.length} stale chunks for ${document.id}.`);
       }
     }
 

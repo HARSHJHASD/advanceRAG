@@ -23,9 +23,25 @@ function uniqueQueries(queries) {
   });
 }
 
+function fallbackQueries(originalQuery, rewrite) {
+  return uniqueQueries([
+    originalQuery,
+    rewrite,
+    `Key concepts, facts, and details about: ${originalQuery}`,
+    `How it works, causes, and implications of: ${originalQuery}`,
+  ]).slice(0, 3);
+}
+
 export async function generateMultipleQueries(question, rewrittenQuery) {
   const originalQuery = question.trim();
   const rewrite = (rewrittenQuery || originalQuery).trim();
+
+  // Deterministic query perspectives provide multi-query retrieval without an
+  // additional model request. Set USE_LLM_MULTI_QUERY=true to enable Gemini
+  // generated variants when quota permits.
+  if (process.env.USE_LLM_MULTI_QUERY !== "true") {
+    return fallbackQueries(originalQuery, rewrite);
+  }
 
   try {
     const prompt = `
@@ -57,9 +73,7 @@ ${originalQuery}
     const queries = uniqueQueries([
       originalQuery,
       ...generatedQueries,
-      rewrite,
-      `Key concepts, facts, and details about: ${originalQuery}`,
-      `How it works, causes, and implications of: ${originalQuery}`,
+      ...fallbackQueries(originalQuery, rewrite),
     ]).slice(0, 3);
 
     console.log("\nMULTI-QUERY GENERATION");
@@ -72,11 +86,6 @@ ${originalQuery}
   } catch (error) {
     console.error("Multi Query Generation Error:", error.message);
 
-    return uniqueQueries([
-      originalQuery,
-      rewrite,
-      `Key concepts, facts, and details about: ${originalQuery}`,
-      `How it works, causes, and implications of: ${originalQuery}`,
-    ]).slice(0, 3);
+    return fallbackQueries(originalQuery, rewrite);
   }
 }

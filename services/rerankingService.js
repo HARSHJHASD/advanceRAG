@@ -1,6 +1,6 @@
 import { generateContent } from "./geminiService.js";
 
-function fallbackToVectorRanking(documents) {
+function fallbackToRetrievalRanking(documents) {
   return documents.map((document, index) => ({
     ...document,
     rerankScore: null,
@@ -12,6 +12,12 @@ function fallbackToVectorRanking(documents) {
 export async function rerankDocuments(question, documents) {
   if (!documents?.length) {
     return [];
+  }
+
+  // RRF already produces a strong deterministic ordering. Reserve Gemini
+  // capacity for answer generation unless reranking is explicitly enabled.
+  if (process.env.USE_LLM_RERANKING !== "true") {
+    return fallbackToRetrievalRanking(documents);
   }
 
   try {
@@ -79,6 +85,6 @@ this shape: [{"index": 0, "score": 87}]. Include every candidate index once.
       error.message
     );
 
-    return fallbackToVectorRanking(documents);
+    return fallbackToRetrievalRanking(documents);
   }
 }
