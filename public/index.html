@@ -515,6 +515,21 @@
                   <p>
 
                     <strong>
+                      Rerank Score:
+                    </strong>
+
+                    ${
+                      typeof source.rerankScore ===
+                      "number"
+                        ? source.rerankScore.toFixed(1)
+                        : "Vector-ranking fallback"
+                    }
+
+                  </p>
+
+                  <p>
+
+                    <strong>
                       Topic:
                     </strong>
 

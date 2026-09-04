@@ -3,22 +3,42 @@ import { generateMultipleQueries } from "./multiQueryService.js";
 import { searchSimilarDocuments } from "./vectorStoreService.js";
 import { generateEmbedding } from "./embeddingService.js";
 import { generateAnswer } from "./geminiService.js";
+import { rerankDocuments } from "./rerankingService.js";
+import { compressContext } from "./contextCompressionService.js";
 
 const SIMILARITY_THRESHOLD = 1.1;
+const RERANK_THRESHOLD = 60;
+const FINAL_DOCUMENT_LIMIT = 3;
 
 export async function processRAGQuestion(question, topic = "all") {
+  // =====================================
+  // 1. QUERY REWRITING
+  // =====================================
+
   const rewrittenQuery = await rewriteQuery(question);
-  const searchQueries = await generateMultipleQueries(question, rewrittenQuery);
+
+  // =====================================
+  // 2. MULTI-QUERY GENERATION
+  // =====================================
+
+  const searchQueries = await generateMultipleQueries(
+    question,
+    rewrittenQuery
+  );
 
   console.log("\nMulti Query Retrieval:", searchQueries);
 
-  // Preserve each independent vector-store hit for diagnostics and UI display.
+  // =====================================
+  // 3. MULTI-QUERY VECTOR RETRIEVAL
+  // =====================================
+
   const rawRetrievalResults = [];
 
   for (const query of searchQueries) {
     console.log(`Searching for: ${query}`);
 
     const embedding = await generateEmbedding(query);
+
     const results = await searchSimilarDocuments({
       embedding,
       topic,
@@ -33,8 +53,10 @@ export async function processRAGQuestion(question, topic = "all") {
     );
   }
 
-  // A Chroma ID identifies a stored document chunk. Keep its closest hit while
-  // recording every query that retrieved that same chunk.
+  // =====================================
+  // 4. DEDUPLICATION
+  // =====================================
+
   const uniqueResultsMap = new Map();
 
   for (const result of rawRetrievalResults) {
@@ -45,15 +67,23 @@ export async function processRAGQuestion(question, topic = "all") {
         ...result,
         retrievedBy: [...result.retrievedBy],
       });
+
       continue;
     }
 
     const retrievedBy = [
-      ...new Set([...existing.retrievedBy, ...result.retrievedBy]),
+      ...new Set([
+        ...existing.retrievedBy,
+        ...result.retrievedBy,
+      ]),
     ];
 
+    // Keep the best similarity result
     if (result.distance < existing.distance) {
-      uniqueResultsMap.set(result.id, { ...result, retrievedBy });
+      uniqueResultsMap.set(result.id, {
+        ...result,
+        retrievedBy,
+      });
     } else {
       existing.retrievedBy = retrievedBy;
     }
@@ -63,43 +93,165 @@ export async function processRAGQuestion(question, topic = "all") {
     (a, b) => a.distance - b.distance
   );
 
-  // Only threshold-qualified chunks are sources or LLM context. Raw results
-  // remain available in retrievalResults for debugging.
-  const sources = mergedResults.filter(
-    (result) => result.distance <= SIMILARITY_THRESHOLD
+  // =====================================
+  // 5. SIMILARITY THRESHOLD
+  // =====================================
+
+  const relevantDocuments = mergedResults.filter(
+    (result) =>
+      result.distance <= SIMILARITY_THRESHOLD
   );
 
-  if (sources.length === 0) {
+  if (relevantDocuments.length === 0) {
     return {
       success: true,
+
       answer:
         "I couldn't find relevant information in the selected documents.",
+
       originalQuestion: question,
+
       rewrittenQuery,
+
       searchQueries,
+
       sources: [],
+
       retrievalResults: rawRetrievalResults,
     };
   }
 
-  const context = sources
-    .slice(0, 5)
-    .map((result, index) => `Source ${index + 1}:\n${result.document}`)
+  // =====================================
+  // 6. RERANKING
+  // =====================================
+
+  console.log(
+    `\nReranking ${relevantDocuments.length} documents...`
+  );
+
+  const rerankedDocuments = await rerankDocuments(
+    question,
+    relevantDocuments
+  );
+
+  console.log(
+    "Reranking completed:",
+    rerankedDocuments.map((document) => ({
+      id: document.id,
+      rerankScore: document.rerankScore,
+    }))
+  );
+
+  // =====================================
+  // 7. RERANK THRESHOLD
+  // =====================================
+
+  const filteredRerankedDocuments =
+    rerankedDocuments.filter(
+      (document) =>
+        document.rerankScore >= RERANK_THRESHOLD
+    );
+
+  // No documents passed reranking threshold
+  if (filteredRerankedDocuments.length === 0) {
+    return {
+      success: true,
+
+      answer:
+        "I couldn't find sufficiently relevant information to answer your question.",
+
+      originalQuestion: question,
+
+      rewrittenQuery,
+
+      searchQueries,
+
+      sources: [],
+
+      retrievalResults: rawRetrievalResults,
+    };
+  }
+
+  // =====================================
+  // 8. SELECT FINAL DOCUMENTS
+  // =====================================
+
+  const sources =
+    filteredRerankedDocuments.slice(
+      0,
+      FINAL_DOCUMENT_LIMIT
+    );
+
+  console.log(
+    `\nSelected ${sources.length} final documents`
+  );
+
+  // =====================================
+  // 9. CONTEXT COMPRESSION 🔥
+  // =====================================
+
+  console.log(
+    "\nCompressing retrieved context..."
+  );
+
+  const compressedSources = compressContext(
+    question,
+    sources
+  );
+
+  // =====================================
+  // 10. BUILD COMPRESSED CONTEXT
+  // =====================================
+
+  const context = compressedSources
+    .map(
+      (result, index) =>
+        `Source ${index + 1}:\n${result.document}`
+    )
     .join("\n\n");
 
-  const answer = await generateAnswer(question, context);
+  console.log(
+    "\nCompressed context ready for LLM"
+  );
+
+  // =====================================
+  // 11. GENERATE FINAL ANSWER
+  // =====================================
+
+  const answer = await generateAnswer(
+    question,
+    context
+  );
+
+  // =====================================
+  // FINAL RESPONSE
+  // =====================================
 
   return {
     success: true,
+
     answer,
+
     originalQuestion: question,
+
     rewrittenQuery,
+
     searchQueries,
-    sources,
+
+    // Return compressed sources for UI
+    sources: compressedSources,
+
+    // Keep raw results for debugging
     retrievalResults: rawRetrievalResults,
   };
 }
 
-export async function askRAG(question, topic = "all") {
-  return processRAGQuestion(question, topic);
+export async function askRAG(
+  question,
+  topic = "all"
+) {
+  return processRAGQuestion(
+    question,
+    topic
+  );
 }
