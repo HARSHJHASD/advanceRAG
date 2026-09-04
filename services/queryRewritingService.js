@@ -1,7 +1,13 @@
 import { ai } from "../config/gemini.js";
 
-export async function rewriteQuery(question) {
+export async function rewriteQuery(question, history = []) {
   try {
+    const conversation = history.length
+      ? history
+          .map(({ role, content }) => `${role}: ${content}`)
+          .join("\n")
+      : "No previous conversation.";
+
     const prompt = `
 You are a search query rewriting system.
 
@@ -17,6 +23,11 @@ Rules:
 4. Make vague questions more explicit when possible.
 5. Keep the rewritten query concise.
 6. Return only the rewritten query.
+7. Use the conversation only to resolve references such as "it", "that",
+   or "how does it work". Do not carry over unrelated earlier topics.
+
+Conversation so far:
+${conversation}
 
 User question:
 ${question}

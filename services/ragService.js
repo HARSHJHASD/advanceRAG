@@ -6,19 +6,45 @@ import { generateAnswer } from "./geminiService.js";
 import { rerankDocuments } from "./rerankingService.js";
 import { compressContext } from "./contextCompressionService.js";
 
+import {
+  getConversationHistory,
+  addMessage,
+} from "./conversationService.js";
+
 const SIMILARITY_THRESHOLD = 1.1;
 const RERANK_THRESHOLD = 60;
 const FINAL_DOCUMENT_LIMIT = 3;
 
-export async function processRAGQuestion(question, topic = "all") {
+export async function processRAGQuestion(
+  question,
+  topic = "all",
+  sessionId = "default-session"
+) {
   // =====================================
-  // 1. QUERY REWRITING
+  // 1. GET CONVERSATION HISTORY
   // =====================================
 
-  const rewrittenQuery = await rewriteQuery(question);
+  const history = getConversationHistory(sessionId);
+
+  console.log(
+    `\nConversation History for ${sessionId}:`,
+    history
+  );
+
+  // Save the current user question
+  addMessage(sessionId, "user", question);
 
   // =====================================
-  // 2. MULTI-QUERY GENERATION
+  // 2. QUERY REWRITING
+  // =====================================
+
+  const rewrittenQuery = await rewriteQuery(
+    question,
+    history
+  );
+
+  // =====================================
+  // 3. MULTI-QUERY GENERATION
   // =====================================
 
   const searchQueries = await generateMultipleQueries(
@@ -29,7 +55,7 @@ export async function processRAGQuestion(question, topic = "all") {
   console.log("\nMulti Query Retrieval:", searchQueries);
 
   // =====================================
-  // 3. MULTI-QUERY VECTOR RETRIEVAL
+  // 4. MULTI-QUERY VECTOR RETRIEVAL
   // =====================================
 
   const rawRetrievalResults = [];
@@ -54,7 +80,7 @@ export async function processRAGQuestion(question, topic = "all") {
   }
 
   // =====================================
-  // 4. DEDUPLICATION
+  // 5. DEDUPLICATION
   // =====================================
 
   const uniqueResultsMap = new Map();
@@ -78,7 +104,7 @@ export async function processRAGQuestion(question, topic = "all") {
       ]),
     ];
 
-    // Keep the best similarity result
+    // Keep the best vector similarity score
     if (result.distance < existing.distance) {
       uniqueResultsMap.set(result.id, {
         ...result,
@@ -89,12 +115,12 @@ export async function processRAGQuestion(question, topic = "all") {
     }
   }
 
-  const mergedResults = [...uniqueResultsMap.values()].sort(
-    (a, b) => a.distance - b.distance
-  );
+  const mergedResults = [
+    ...uniqueResultsMap.values(),
+  ].sort((a, b) => a.distance - b.distance);
 
   // =====================================
-  // 5. SIMILARITY THRESHOLD
+  // 6. SIMILARITY THRESHOLD
   // =====================================
 
   const relevantDocuments = mergedResults.filter(
@@ -102,27 +128,30 @@ export async function processRAGQuestion(question, topic = "all") {
       result.distance <= SIMILARITY_THRESHOLD
   );
 
+  // =====================================
+  // NO RELEVANT DOCUMENTS
+  // =====================================
+
   if (relevantDocuments.length === 0) {
+    const answer =
+      "I couldn't find relevant information in the selected documents.";
+
+    // Save assistant response
+    addMessage(sessionId, "assistant", answer);
+
     return {
       success: true,
-
-      answer:
-        "I couldn't find relevant information in the selected documents.",
-
+      answer,
       originalQuestion: question,
-
       rewrittenQuery,
-
       searchQueries,
-
       sources: [],
-
       retrievalResults: rawRetrievalResults,
     };
   }
 
   // =====================================
-  // 6. RERANKING
+  // 7. RERANKING
   // =====================================
 
   console.log(
@@ -130,7 +159,7 @@ export async function processRAGQuestion(question, topic = "all") {
   );
 
   const rerankedDocuments = await rerankDocuments(
-    question,
+    rewrittenQuery,
     relevantDocuments
   );
 
@@ -143,64 +172,64 @@ export async function processRAGQuestion(question, topic = "all") {
   );
 
   // =====================================
-  // 7. RERANK THRESHOLD
+  // 8. RERANK THRESHOLD
   // =====================================
 
   const filteredRerankedDocuments =
     rerankedDocuments.filter(
       (document) =>
+        document.rerankScore === null ||
         document.rerankScore >= RERANK_THRESHOLD
     );
 
-  // No documents passed reranking threshold
+  // =====================================
+  // NO DOCUMENTS PASSED RERANKING
+  // =====================================
+
   if (filteredRerankedDocuments.length === 0) {
+    const answer =
+      "I couldn't find sufficiently relevant information to answer your question.";
+
+    // Save assistant response
+    addMessage(sessionId, "assistant", answer);
+
     return {
       success: true,
-
-      answer:
-        "I couldn't find sufficiently relevant information to answer your question.",
-
+      answer,
       originalQuestion: question,
-
       rewrittenQuery,
-
       searchQueries,
-
       sources: [],
-
       retrievalResults: rawRetrievalResults,
     };
   }
 
   // =====================================
-  // 8. SELECT FINAL DOCUMENTS
+  // 9. SELECT FINAL DOCUMENTS
   // =====================================
 
-  const sources =
-    filteredRerankedDocuments.slice(
-      0,
-      FINAL_DOCUMENT_LIMIT
-    );
+  const sources = filteredRerankedDocuments.slice(
+    0,
+    FINAL_DOCUMENT_LIMIT
+  );
 
   console.log(
     `\nSelected ${sources.length} final documents`
   );
 
   // =====================================
-  // 9. CONTEXT COMPRESSION 🔥
+  // 10. CONTEXT COMPRESSION
   // =====================================
 
-  console.log(
-    "\nCompressing retrieved context..."
-  );
+  console.log("\nCompressing context...");
 
   const compressedSources = compressContext(
-    question,
+    rewrittenQuery,
     sources
   );
 
   // =====================================
-  // 10. BUILD COMPRESSED CONTEXT
+  // 11. BUILD COMPRESSED CONTEXT
   // =====================================
 
   const context = compressedSources
@@ -210,18 +239,20 @@ export async function processRAGQuestion(question, topic = "all") {
     )
     .join("\n\n");
 
-  console.log(
-    "\nCompressed context ready for LLM"
-  );
-
   // =====================================
-  // 11. GENERATE FINAL ANSWER
+  // 12. GENERATE FINAL ANSWER
   // =====================================
 
   const answer = await generateAnswer(
-    question,
+    rewrittenQuery,
     context
   );
+
+  // =====================================
+  // 13. SAVE ASSISTANT RESPONSE
+  // =====================================
+
+  addMessage(sessionId, "assistant", answer);
 
   // =====================================
   // FINAL RESPONSE
@@ -229,29 +260,23 @@ export async function processRAGQuestion(question, topic = "all") {
 
   return {
     success: true,
-
     answer,
-
     originalQuestion: question,
-
     rewrittenQuery,
-
     searchQueries,
-
-    // Return compressed sources for UI
     sources: compressedSources,
-
-    // Keep raw results for debugging
     retrievalResults: rawRetrievalResults,
   };
 }
 
 export async function askRAG(
   question,
-  topic = "all"
+  topic = "all",
+  sessionId = "default-session"
 ) {
   return processRAGQuestion(
     question,
-    topic
+    topic,
+    sessionId
   );
 }

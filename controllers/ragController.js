@@ -2,7 +2,7 @@ import { askRAG } from "../services/ragService.js";
 
 export async function askQuestion(req, res) {
   try {
-    const { question, topic } = req.body;
+    const { question, topic, sessionId } = req.body;
 
     if (!question || !question.trim()) {
       return res.status(400).json({
@@ -13,7 +13,8 @@ export async function askQuestion(req, res) {
 
     const result = await askRAG(
       question,
-      topic
+      topic,
+      sessionId
     );
 
     res.json(result);
