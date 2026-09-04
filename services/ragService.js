@@ -1,6 +1,11 @@
 import { rewriteQuery } from "./queryRewritingService.js";
 import { generateMultipleQueries } from "./multiQueryService.js";
-import { searchSimilarDocuments } from "./vectorStoreService.js";
+
+import {
+  searchSimilarDocuments,
+  searchByKeywords,
+} from "./vectorStoreService.js";
+
 import { generateEmbedding } from "./embeddingService.js";
 import { generateAnswer } from "./geminiService.js";
 import { rerankDocuments } from "./rerankingService.js";
@@ -14,6 +19,7 @@ import {
 const SIMILARITY_THRESHOLD = 1.1;
 const RERANK_THRESHOLD = 60;
 const FINAL_DOCUMENT_LIMIT = 3;
+const RRF_K = 60;
 
 export async function processRAGQuestion(
   question,
@@ -31,7 +37,6 @@ export async function processRAGQuestion(
     history
   );
 
-  // Save the current user question
   addMessage(sessionId, "user", question);
 
   // =====================================
@@ -52,50 +57,102 @@ export async function processRAGQuestion(
     rewrittenQuery
   );
 
-  console.log("\nMulti Query Retrieval:", searchQueries);
+  console.log(
+    "\nMulti Query Retrieval:",
+    searchQueries
+  );
 
   // =====================================
-  // 4. MULTI-QUERY VECTOR RETRIEVAL
+  // 4. HYBRID RETRIEVAL
+  // VECTOR SEARCH + KEYWORD SEARCH
   // =====================================
 
   const rawRetrievalResults = [];
 
   for (const query of searchQueries) {
-    console.log(`Searching for: ${query}`);
+    console.log(`\nHybrid search for: ${query}`);
+
+    // -------------------------------------
+    // A. VECTOR SEARCH
+    // -------------------------------------
 
     const embedding = await generateEmbedding(query);
 
-    const results = await searchSimilarDocuments({
-      embedding,
-      topic,
-      limit: 5,
-    });
+    const vectorResults =
+      await searchSimilarDocuments({
+        embedding,
+        topic,
+        limit: 5,
+      });
 
     rawRetrievalResults.push(
-      ...results.map((result) => ({
+      ...vectorResults.map((result, index) => ({
         ...result,
+        searchType: "vector",
+        rank: index + 1,
+        rrfScore: 1 / (RRF_K + index + 1),
+        retrievedBy: [query],
+      }))
+    );
+
+    // -------------------------------------
+    // B. KEYWORD SEARCH
+    // -------------------------------------
+
+    const keywordResults =
+      await searchByKeywords({
+        query,
+        topic,
+        limit: 5,
+      });
+
+    rawRetrievalResults.push(
+      ...keywordResults.map((result, index) => ({
+        ...result,
+        distance: null,
+        searchType: "keyword",
+        rank: index + 1,
+        rrfScore: 1 / (RRF_K + index + 1),
         retrievedBy: [query],
       }))
     );
   }
 
+  console.log(
+    `\nTotal hybrid retrieval results: ${rawRetrievalResults.length}`
+  );
+
   // =====================================
-  // 5. DEDUPLICATION
+  // 5. DEDUPLICATION + HYBRID MERGING
   // =====================================
 
   const uniqueResultsMap = new Map();
 
   for (const result of rawRetrievalResults) {
-    const existing = uniqueResultsMap.get(result.id);
+    const existing =
+      uniqueResultsMap.get(result.id);
+
+    // -------------------------------------
+    // FIRST OCCURRENCE
+    // -------------------------------------
 
     if (!existing) {
       uniqueResultsMap.set(result.id, {
         ...result,
-        retrievedBy: [...result.retrievedBy],
+
+        retrievedBy: [
+          ...result.retrievedBy,
+        ],
+
+        searchTypes: [result.searchType],
       });
 
       continue;
     }
+
+    // -------------------------------------
+    // MERGE RETRIEVAL QUERIES
+    // -------------------------------------
 
     const retrievedBy = [
       ...new Set([
@@ -104,40 +161,81 @@ export async function processRAGQuestion(
       ]),
     ];
 
-    // Keep the best vector similarity score
-    if (result.distance < existing.distance) {
-      uniqueResultsMap.set(result.id, {
-        ...result,
-        retrievedBy,
-      });
-    } else {
-      existing.retrievedBy = retrievedBy;
+    // -------------------------------------
+    // MERGE SEARCH TYPES
+    // -------------------------------------
+
+    const searchTypes = [
+      ...new Set([
+        ...existing.searchTypes,
+        result.searchType,
+      ]),
+    ];
+
+    // -------------------------------------
+    // KEEP BEST VECTOR DISTANCE
+    // -------------------------------------
+
+    let distance = existing.distance;
+
+    if (
+      typeof result.distance === "number" &&
+      (
+        typeof existing.distance !== "number" ||
+        result.distance < existing.distance
+      )
+    ) {
+      distance = result.distance;
     }
+
+    const bm25Score = Math.max(
+      existing.bm25Score || 0,
+      result.bm25Score || 0
+    );
+
+    uniqueResultsMap.set(result.id, {
+      ...existing,
+      retrievedBy,
+      searchTypes,
+      distance,
+      bm25Score,
+      rrfScore: existing.rrfScore + result.rrfScore,
+    });
   }
 
-  const mergedResults = [
-    ...uniqueResultsMap.values(),
-  ].sort((a, b) => a.distance - b.distance);
+  const mergedResults = [...uniqueResultsMap.values()].sort(
+    (a, b) => b.rrfScore - a.rrfScore
+  );
 
-  // =====================================
-  // 6. SIMILARITY THRESHOLD
-  // =====================================
-
-  const relevantDocuments = mergedResults.filter(
-    (result) =>
-      result.distance <= SIMILARITY_THRESHOLD
+  console.log(
+    `Unique hybrid results: ${mergedResults.length}`
   );
 
   // =====================================
-  // NO RELEVANT DOCUMENTS
+  // 6. SIMILARITY FILTER
   // =====================================
+
+  // Keyword-only matches are eligible. A chunk that was retrieved by vector
+  // search must still meet the configured vector-distance threshold.
+
+  const relevantDocuments =
+    mergedResults.filter((result) => {
+      if (typeof result.distance === "number") {
+        return result.distance <= SIMILARITY_THRESHOLD;
+      }
+
+      return result.searchTypes.includes("keyword");
+    });
 
   if (relevantDocuments.length === 0) {
     const answer =
       "I couldn't find relevant information in the selected documents.";
 
-    // Save assistant response
-    addMessage(sessionId, "assistant", answer);
+    addMessage(
+      sessionId,
+      "assistant",
+      answer
+    );
 
     return {
       success: true,
@@ -155,20 +253,26 @@ export async function processRAGQuestion(
   // =====================================
 
   console.log(
-    `\nReranking ${relevantDocuments.length} documents...`
+    `\nReranking ${relevantDocuments.length} hybrid results...`
   );
 
-  const rerankedDocuments = await rerankDocuments(
-    rewrittenQuery,
-    relevantDocuments
-  );
+  const rerankedDocuments =
+    await rerankDocuments(
+      rewrittenQuery,
+      relevantDocuments
+    );
 
   console.log(
     "Reranking completed:",
-    rerankedDocuments.map((document) => ({
-      id: document.id,
-      rerankScore: document.rerankScore,
-    }))
+    rerankedDocuments.map(
+      (document) => ({
+        id: document.id,
+        rerankScore:
+          document.rerankScore,
+        searchTypes:
+          document.searchTypes,
+      })
+    )
   );
 
   // =====================================
@@ -179,19 +283,21 @@ export async function processRAGQuestion(
     rerankedDocuments.filter(
       (document) =>
         document.rerankScore === null ||
-        document.rerankScore >= RERANK_THRESHOLD
+        document.rerankScore >=
+          RERANK_THRESHOLD
     );
 
-  // =====================================
-  // NO DOCUMENTS PASSED RERANKING
-  // =====================================
-
-  if (filteredRerankedDocuments.length === 0) {
+  if (
+    filteredRerankedDocuments.length === 0
+  ) {
     const answer =
       "I couldn't find sufficiently relevant information to answer your question.";
 
-    // Save assistant response
-    addMessage(sessionId, "assistant", answer);
+    addMessage(
+      sessionId,
+      "assistant",
+      answer
+    );
 
     return {
       success: true,
@@ -208,10 +314,11 @@ export async function processRAGQuestion(
   // 9. SELECT FINAL DOCUMENTS
   // =====================================
 
-  const sources = filteredRerankedDocuments.slice(
-    0,
-    FINAL_DOCUMENT_LIMIT
-  );
+  const sources =
+    filteredRerankedDocuments.slice(
+      0,
+      FINAL_DOCUMENT_LIMIT
+    );
 
   console.log(
     `\nSelected ${sources.length} final documents`
@@ -221,15 +328,18 @@ export async function processRAGQuestion(
   // 10. CONTEXT COMPRESSION
   // =====================================
 
-  console.log("\nCompressing context...");
-
-  const compressedSources = compressContext(
-    rewrittenQuery,
-    sources
+  console.log(
+    "\nCompressing context..."
   );
 
+  const compressedSources =
+    compressContext(
+      rewrittenQuery,
+      sources
+    );
+
   // =====================================
-  // 11. BUILD COMPRESSED CONTEXT
+  // 11. BUILD CONTEXT
   // =====================================
 
   const context = compressedSources
@@ -243,16 +353,21 @@ export async function processRAGQuestion(
   // 12. GENERATE FINAL ANSWER
   // =====================================
 
-  const answer = await generateAnswer(
-    rewrittenQuery,
-    context
+  const answer =
+    await generateAnswer(
+      rewrittenQuery,
+      context
+    );
+
+  // =====================================
+  // 13. SAVE CONVERSATION
+  // =====================================
+
+  addMessage(
+    sessionId,
+    "assistant",
+    answer
   );
-
-  // =====================================
-  // 13. SAVE ASSISTANT RESPONSE
-  // =====================================
-
-  addMessage(sessionId, "assistant", answer);
 
   // =====================================
   // FINAL RESPONSE
